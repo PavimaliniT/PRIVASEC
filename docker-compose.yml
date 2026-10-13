@@ -1,0 +1,93 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: privasec_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-privasec}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-privasec_secure_pwd_99!}
+      POSTGRES_DB: ${POSTGRES_DB:-privasec_db}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U privasec -d privasec_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: privasec_redis
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: privasec_api
+    restart: always
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://privasec:privasec_secure_pwd_99!@postgres:5432/privasec_db
+      - REDIS_URL=redis://redis:6379/0
+      - SECRET_KEY=${SECRET_KEY:-privasec-super-secret-development-key-32chars-min-length-99!}
+      - ENCRYPTION_MASTER_KEY_HEX=${ENCRYPTION_MASTER_KEY_HEX:-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef}
+      - ENVIRONMENT=production
+      - DEBUG=False
+    ports:
+      - "8000:8000"
+    volumes:
+      - api_storage:/app/storage
+
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: privasec_worker
+    restart: always
+    command: python -m celery -A app.core.celery_worker worker --loglevel=info
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://privasec:privasec_secure_pwd_99!@postgres:5432/privasec_db
+      - REDIS_URL=redis://redis:6379/0
+      - SECRET_KEY=${SECRET_KEY:-privasec-super-secret-development-key-32chars-min-length-99!}
+      - ENCRYPTION_MASTER_KEY_HEX=${ENCRYPTION_MASTER_KEY_HEX:-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef}
+    volumes:
+      - api_storage:/app/storage
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: privasec_frontend
+    restart: always
+    depends_on:
+      - api
+    ports:
+      - "5173:80"
+
+volumes:
+  postgres_data:
+  redis_data:
+  api_storage:
