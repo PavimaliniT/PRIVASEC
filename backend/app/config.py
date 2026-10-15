@@ -53,9 +53,13 @@ class Settings(BaseSettings):
     # Audit Hash Chain Genesis
     AUDIT_GENESIS_PREV_HASH: str = "0000000000000000000000000000000000000000000000000000000000000000"
 
+    HOST: str = "127.0.0.1"
+    PORT: int = 8000
+
     class Config:
         env_file = ".env"
         case_sensitive = True
+        extra = "ignore"
 
 
 settings = Settings()

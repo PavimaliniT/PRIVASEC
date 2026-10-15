@@ -5,6 +5,7 @@ import csv
 from typing import List, Dict, Any, Optional, Tuple
 from pypdf import PdfReader
 from presidio_analyzer import AnalyzerEngine, PatternRecognizer, Pattern, RecognizerResult
+from presidio_analyzer.nlp_engine import NlpEngineProvider
 from presidio_anonymizer import AnonymizerEngine
 
 # Indian PAN Pattern: 5 letters (first 3 alphabetic series, 4th status e.g. P/C/F/H/A/T, 5th first letter of surname), 4 digits, 1 letter
@@ -58,7 +59,16 @@ def luhn_checksum(card_number: str) -> bool:
 
 class PrivasecPIIDetector:
     def __init__(self):
-        self.analyzer = AnalyzerEngine()
+        try:
+            nlp_config = {
+                "nlp_engine_name": "spacy",
+                "models": [{"lang_code": "en", "model_name": "en_core_web_sm"}]
+            }
+            provider = NlpEngineProvider(nlp_configuration=nlp_config)
+            nlp_engine = provider.create_engine()
+            self.analyzer = AnalyzerEngine(nlp_engine=nlp_engine)
+        except Exception:
+            self.analyzer = AnalyzerEngine()
         self.anonymizer = AnonymizerEngine()
         self._register_custom_recognizers()
 
